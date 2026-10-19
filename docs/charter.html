@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Project Charter</title>
+<style>
+  @page { size: Letter; margin: 0.9in 1in; }
+  body { font-family: "Times New Roman", Times, serif; font-size: 11.5pt; line-height: 1.32; color: #000; }
+  .kicker { font-weight: bold; font-size: 14pt; margin: 0; }
+  h1 { font-size: 21pt; margin: 2px 0 6px; }
+  h2 { font-size: 14pt; margin: 14px 0 5px; page-break-after: avoid; }
+  p { margin: 0 0 7px; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0 10px; font-size: 10.5pt; page-break-inside: avoid; }
+  th, td { border: 1px solid #999; padding: 4px 6px; vertical-align: top; text-align: left; }
+  th { background: #eee; }
+  td.n { text-align: center; width: 44px; }
+  code { font-family: inherit; }
+</style>
+</head>
+<body>
+
+<p class="kicker">Project Charter</p>
+<h1>Reliable Probabilistic Time Series Imputation</h1>
+<p><b>Authors:</b> Vladislav Voronin, Kirill Lalayants, Mikhail Bezrukov, Fedor Zhirkov<br>
+<b>Supervisor:</b> Vitaliy Pozdnyakov<br>
+<b>Program:</b> Artificial Intelligence and Financial Technologies. Course: Models of Sequential Data, 2026.</p>
+
+<h2>1. Research question and claim/hypothesis</h2>
+<p><b>Shared research problem:</b> Plausible reconstructions and low median error can hide unreliable uncertainty. Narrow data, leakage and unsuitable metrics can distort evaluation (Bergmeir, 2023).</p>
+<p><b>Research question:</b> When are native predictive distributions reliable, and how does two-sided forecasting adaptation affect calibration?</p>
+<p><b>Hypotheses:</b> (1) Contiguous blocks are harder than scattered points. (2) Median accuracy and calibration can disagree. (3) Blending left and right forecasts can change calibration in either direction. We report observed differences on this setup, without claiming statistical significance.</p>
+
+<h2>2. Task, horizon, and intended output</h2>
+<p><b>Task:</b> Probabilistic retrospective imputation. Inside each window we hide 24 or 128 values, either as scattered points or as contiguous gaps. Each pair (scattered vs contiguous) has the same hidden count, and both window edges stay observed.</p>
+<p><b>Intended output:</b> Predictive quantiles for each hidden value; the median gives the point estimate. Tables by model, dataset, mask type and hidden count; reliability curves; coverage and width plotted along the gap position; code, poster and report.</p>
+
+<h2>3. Data source, access, licensing, limitations</h2>
+<p><b>Datasets:</b> ETT_h1, Electricity and BeijingAir. These are standard imputation benchmarks used in TSI-Bench (Du et al., 2024).</p>
+<p><b>Access:</b> Load the public benchmark versions and keep a local copy. Publish loading code, not the raw data. Original dataset licenses apply.</p>
+<p><b>Limitations:</b> Masks are synthetic. Only eligible complete windows are used. Channels are dependent, so cases are not independent repeats. Overlap with Chronos pretraining data cannot be ruled out.</p>
+<p><b>EDA:</b> One small notebook with data coverage, missing-value summary, scale differences and typical seasonal patterns per dataset.</p>
+
+<h2>4. Train-validation-test protocol and leakage audit</h2>
+<p><b>Split:</b> Chronological 60% / 20% / 20% train / validation / test for each dataset.</p>
+<p><b>Protocol:</b> Scaling, Kalman parameters and CSDI are fitted on train only. Settings are frozen after validation. Chronos-2-small is used frozen, without fine-tuning.</p>
+<p><b>Leakage audit:</b> Only hidden targets are scored. True values inside the mask are never given to any model. Each full window stays inside its split. All methods use the same saved masks; validation and test use different random seeds.</p>
+
+<h2>5. Metrics and justification</h2>
+<table>
+<tr><th>Metric</th><th>Definition</th><th>Purpose</th></tr>
+<tr><td>MAE / MSE / RMSE</td><td>mean |y − m|; mean (y − m)²; √MSE</td><td>Point accuracy of the median m. Lower is better.</td></tr>
+<tr><td>MRE</td><td>Σ |y − m| / Σ |y|</td><td>Relative error in original units. Guarded against near-zero denominators.</td></tr>
+<tr><td>Pinball loss</td><td>ρ<sub>q</sub>(e) = max(qe, (q − 1)e), e = y − Q<sub>q</sub></td><td>Quantile accuracy, averaged over q = 0.1, …, 0.9. Lower is better.</td></tr>
+<tr><td>CRPS</td><td>E|X − y| − ½ E|X − X′|</td><td>Marginal distribution accuracy. Kalman: analytical; CSDI: from samples; Chronos: approximation from quantiles.</td></tr>
+<tr><td>NLL</td><td>−log p(y | observed)</td><td>Predictive density at the truth. Exact for Kalman only; samples or quantiles alone are insufficient.</td></tr>
+<tr><td>PCE</td><td>mean<sub>q</sub> |q − c(q)|, c(q) = mean 1[y ≤ Q<sub>q</sub>]</td><td>Quantile calibration error. Zero is ideal. Read with reliability curves.</td></tr>
+<tr><td>CCE</td><td>mean<sub>s</sub> [s − coverage(s)]</td><td>Signed interval calibration. Positive: undercoverage; negative: overcoverage.</td></tr>
+<tr><td>80% coverage</td><td>mean 1[Q<sub>0.1</sub> ≤ y ≤ Q<sub>0.9</sub>]</td><td>Calibration of the central 80% interval. Target 0.8, read with width.</td></tr>
+<tr><td>Width / SIW</td><td>Width<sub>s</sub> = Q<sub>(1+s)/2</sub> − Q<sub>(1−s)/2</sub>; SIW = mean<sub>s</sub> mean(Width<sub>s</sub>) / IQR<sub>s</sub>(y)</td><td>Sharpness, scaled by the matching empirical target range. Read with coverage.</td></tr>
+</table>
+<p>CRPS and NLL are reported only where they can be evaluated. Accuracy alone is not enough: the project question is about calibration, so coverage, PCE, CCE and SIW are primary for the uncertainty claims.</p>
+
+<h2>6. Baseline ladder</h2>
+<p><b>Classical:</b> Gaussian Kalman smoother — a classical probabilistic state-space baseline. It conditions on all observed positions; process and observation variances are fitted on train. Uncertainty is the conditional Gaussian distribution of each missing measurement (including observation variance), not only of the latent state.</p>
+<p><b>Deep baseline:</b> CSDI via PyPOTS (Tashiro et al., 2021) — a trained conditional diffusion imputer. Pooled univariate training on a mixture of point and block masks, using the same masked windows. Uncertainty comes from sampled missing trajectories; we keep 100 draws per window if feasible. The point estimate is the empirical sample median.</p>
+<p><b>Foundation model:</b> Chronos-2-small — a frozen quantile foundation forecaster. It forecasts from the left context and from the reversed right context; other hidden runs stay masked. Native forecast quantiles are used; the two-sided blend is our adaptation.</p>
+<p><b>Literature basis:</b> Bergmeir (2023) on evaluation pitfalls; TSI-Bench (Du et al., 2024) for datasets and point/block comparison; Adler et al. (2026) for calibration diagnostics; Tashiro et al. (2021) for CSDI; Gneiting &amp; Raftery (2007) for proper scoring rules; PyPOTS and Chronos documentation.</p>
+
+<h2>7. Method and the smallest decisive experiment</h2>
+<p><b>Method:</b> For Chronos, forecast the gap from the left context, forecast it from the reversed right context, then blend matching quantiles position by position. This is a heuristic, not exact conditional inference.</p>
+<p><b>Analytical motivation:</b> For a Gaussian random walk with noiseless endpoints and a 24-step gap, blended quantiles near the midpoint are about 1.4 times wider than the exact Gaussian bridge. This is an analytical illustration, not a measured result, and it shows why blending can miscalibrate.</p>
+<p><b>Matched comparison:</b> All three methods are scored on identical masks and targets: 24 or 128 hidden values, scattered or contiguous, with the same hidden count inside each pair.</p>
+<p><b>Decisive ablation:</b> Left-only vs right-only vs blended Chronos quantiles on identical targets, with coverage and width plotted along the gap position.</p>
+
+<h2>8. Planned ablations and robustness checks</h2>
+<p><b>Mask type and size:</b> scattered vs contiguous at 24 and 128 hidden values.</p>
+<p><b>Chronos direction:</b> left-only, right-only and blended quantiles.</p>
+<p><b>CSDI sampling check:</b> quantile stability with 50 vs 100 draws.</p>
+<p><b>Kalman check:</b> include observation variance and inspect seasonal misspecification.</p>
+<p>No fine-tuning of Chronos, no extra datasets or missingness mechanisms, and no hyperparameter search beyond validation of the fixed settings.</p>
+
+<h2>9. Compute budget, runtime, and fallback</h2>
+<p><b>Chronos:</b> smoke test on Apple MPS, with CPU/CUDA fallback.</p>
+<p><b>CSDI:</b> required for the comparison. An early feasibility check, then at most six GPU-hours in total. Save checkpoints and keep the best validation checkpoint. This is a budget cap, not a runtime guarantee.</p>
+<p><b>Fallback:</b> if compute is not enough, reduce the shared scope (for example, fewer evaluated windows) rather than dropping a method. Do not add a replacement architecture.</p>
+
+<h2>10. Roles, repository, and weekly plan</h2>
+<p><b>Team roles:</b> One main owner each for data and masks/evaluation, the Kalman baseline, CSDI, and Chronos adapters. Everyone contributes to the report.</p>
+<p><b>Repository:</b> A small GitHub repo with Python scripts, one config, pinned dependencies and README commands for data preparation, training/inference and evaluation. Save masks, predictions and metrics so tables and plots can be rebuilt without rerunning models. Record individual contributions in README.</p>
+<table>
+<tr><th>Week</th><th>Focus</th></tr>
+<tr><td class="n">1</td><td>Data, masks and CSDI feasibility; Chronos adapters.</td></tr>
+<tr><td class="n">2</td><td>Gaussian baseline, pilot and small CSDI training.</td></tr>
+<tr><td class="n">3</td><td>Freeze models and draws; matched evaluation.</td></tr>
+<tr><td class="n">4</td><td>Calibration diagnostics; poster and report draft.</td></tr>
+<tr><td class="n">5</td><td>Rebuild outputs, reproduce and peer review.</td></tr>
+<tr><td class="n">6</td><td>Final report and limitations.</td></tr>
+</table>
+
+<h2>11. Main scientific and execution risks</h2>
+<table>
+<tr><th>Source</th><th>Relevant evidence</th><th>Project use</th><th>Not established</th></tr>
+<tr><td>Bergmeir 2023</td><td>Plots, leakage, weak benchmarks and unsuitable metrics can mislead.</td><td>Matched masks and strong simple baselines.</td><td>Does not evaluate probabilistic imputation.</td></tr>
+<tr><td>TSI-Bench 2024</td><td>Performance depends on dataset and missingness pattern.</td><td>Standard datasets; point/block comparison; MAE, MSE, MRE.</td><td>Published scores are not reproduced by our changed protocol.</td></tr>
+<tr><td>Adler et al. 2026</td><td>Calibration requires diagnostics beyond point accuracy.</td><td>PCE, CCE, SIW and reliability curves.</td><td>Forecast calibration does not validate a two-sided blend.</td></tr>
+</table>
+<p><b>Claim boundaries:</b> CSDI — finite draws introduce quantile error, and compute must pass the pilot. Kalman — Gaussian assumptions may fail; fitted-parameter uncertainty is excluded. Chronos — forecast calibration does not imply imputation calibration.</p>
+<p><b>Scientific limits:</b> synthetic masks; eligible complete windows only; dependent channels; possible pretraining overlap; finite diffusion samples; Gaussian misspecification. Results describe this setup and this blending rule, not all foundation models.</p>
+<p><b>Execution risk:</b> CSDI is needed for the full comparison. If no usable checkpoint is obtained within budget, report the experiment as incomplete and the CSDI part as untested.</p>
+
+<h2>12. Intended AI use and how outputs will be checked</h2>
+<p>LLM help for literature notes, text editing and routine code. Final numbers come only from saved experiment outputs. We check formulas and model usage against the cited papers or official code, and rerun evaluation to reproduce the tables and figures.</p>
+
+<h2>References</h2>
+<p>Bergmeir (2023); Du et al. (2024), TSI-Bench; Adler et al. (2026); Tashiro et al. (2021), CSDI; Gneiting &amp; Raftery (2007); PyPOTS and Chronos documentation.</p>
+
+</body>
+</html>

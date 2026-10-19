@@ -1,0 +1,18 @@
+{
+  "ETT_h1": {
+    "train_hours": 0.35,
+    "note": "from logs/main_run.log timestamps (14:26:42-14:47:42); run interrupted before log.json was written"
+  },
+  "Electricity": {
+    "train_hours": 0.54,
+    "note": "from logs/main_run.log timestamps (15:41:49-16:14:01); run interrupted before log.json was written",
+    "test_sampling_hours": 0.4279556619458728
+  },
+  "BeijingAir": {
+    "train_hours": 0.37379996697107953,
+    "n_train_windows": 6000,
+    "best_val_loss": 0.14544122772557394,
+    "val_sampling_hours": 0.7075623130136066,
+    "test_sampling_hours": 0.5786784493923187
+  }
+}

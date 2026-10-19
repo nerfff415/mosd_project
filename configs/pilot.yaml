@@ -1,0 +1,10 @@
+# Pilot: same protocol, much smaller scale. Checks the pipeline, not the hypotheses.
+base: main.yaml
+results_dir: results_pilot
+n_eval_windows: 8
+csdi:
+  n_train_windows: 300
+  n_val_windows: 40
+  epochs: 2
+  patience: 1
+  n_samples: 20

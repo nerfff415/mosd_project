@@ -1,0 +1,54 @@
+# Main experiment configuration. All paths are relative to the repository root.
+data_dir: data
+results_dir: results
+
+datasets:
+  ETT_h1:
+    source: electricity_transformer_temperature
+    subset: ETTh1
+  Electricity:
+    source: electricity_load_diagrams
+    start: "2012-01-01"     # earlier years contain long zero runs for many clients
+    resample: 1h            # 15-min load aggregated to hourly means
+    n_channels: 20          # first clients (by id) without long zero runs
+    max_zero_run: 24
+  BeijingAir:
+    source: beijing_multisite_air_quality
+    variable: PM2.5         # one univariate channel per station (12 stations)
+
+split: [0.6, 0.2, 0.2]       # chronological train / validation / test
+
+window: 256                  # length of every masked window
+edge: 24                     # first and last `edge` points always stay observed
+hidden_counts: [24, 128]
+patterns: [point, block]     # scattered points vs one contiguous gap
+n_eval_windows: 60           # windows per dataset and split, shared by all mask configs
+seeds: {val: 1, test: 2, train: 0}
+
+quantiles: [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+
+kalman:
+  fit_points: 6000           # last train points per channel used for variance MLE
+
+chronos:
+  model: autogluon/chronos-2-small
+  device: cpu                # MPS works but is slower for this model size
+  batch_size: 256
+
+csdi:
+  device: mps
+  n_train_windows: 6000
+  n_val_windows: 200
+  n_layers: 4
+  n_heads: 8
+  n_channels: 64
+  d_time_embedding: 128
+  d_feature_embedding: 16
+  d_diffusion_embedding: 128
+  n_diffusion_steps: 50
+  batch_size: 32
+  epochs: 40
+  patience: 5
+  n_samples: 100
+  sample_batch_size: 400   # rows per sampling batch (window x draw)
+  gpu_hour_cap: 6

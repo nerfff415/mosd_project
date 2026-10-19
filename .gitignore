@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.DS_Store
+# Processed data are rebuilt by `python -m tsi.data` (raw data come from tsdb)
+data/
+# PyPOTS run folders duplicate model.pypots and hold tensorboard logs
+results*/csdi/*/runs/
