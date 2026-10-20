@@ -162,16 +162,3 @@ synthetic oracle test (M3) are all cheap and would make the conclusions defensib
 Minor points: m1 add `torch.manual_seed` and document MPS non-determinism; m2, m4, m7 fix the README;
 m3 move NLL to a Kalman-only note; m5 add a sorted best-per-cell table; m6 mark datasets known to be
 in the Chronos corpus.
-
-### Prioritized revision plan
-
-1. **Common scoring (M2)**: pinball as main metric, quantile-CRPS for all models. *Hours: 0.5.* Only
-   `evaluate` changes, predictions are reused.
-2. **Paired bootstrap (M1)**: intervals for all pairwise differences and ties in the summary table.
-   *Hours: 1.* Reuses saved predictions.
-3. **Synthetic oracle test (M3)**: local-level set, Chronos left/right/blend vs exact smoother.
-   *Hours: 1–2.*
-4. **Text fixes (M4, M5, minor)**: rephrase CSDI and Kalman claims, README updates, torch seed.
-   *Hours: 1.*
-5. **If time remains**: Electricity CSDI with a larger epoch budget (M4), then the seasonal synthetic
-   variant (M3).
